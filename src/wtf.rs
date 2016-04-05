@@ -1,8 +1,9 @@
-extern crate xcb;
+extern crate lax;
 
 use std::env;
 use std::process;
-use xcb::xproto;
+use lax::prelude::*;
+use lax::window::RevertFocus;
 
 pub mod util;
 
@@ -18,10 +19,12 @@ fn main() {
         usage(&programname);
     }
 
-    let connection = util::init_xcb(&programname);
+    let connection = util::init_lax(&programname);
 
-    let win = util::get_window_id(&args[1]);
+    let window_id = util::get_window_id(&args[1]);
+    let window = WindowRef::from(&connection, window_id);
 
-    xproto::set_input_focus(&connection, xproto::INPUT_FOCUS_POINTER_ROOT as u8, win, xproto::TIME_CURRENT_TIME);
+    window.focus(RevertFocus::PointerRoot);
+
     connection.flush();
 }
