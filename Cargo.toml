@@ -5,6 +5,7 @@ authors = ["Adam <sector-f on github>"]
 
 [dependencies]
 clap = "2.2.5"
+lax = {git="https://github.com/panicbit/lax"}
 
 [dependencies.xcb]
 git = "https://github.com/rtbo/rust-xcb.git"
