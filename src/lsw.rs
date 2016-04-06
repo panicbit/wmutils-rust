@@ -1,8 +1,11 @@
 extern crate xcb;
 extern crate clap;
+extern crate lax;
 mod util;
 
 use clap::{Arg, App};
+use lax::prelude::*;
+use lax::window::MapState;
 
 #[derive(Copy,Clone)]
 struct Flags {
@@ -30,20 +33,19 @@ fn main() {
         .get_matches();
 
     // Initialize xcb values
-    let conn = util::init_xcb("lsw");
-    let setup = conn.get_setup();
-    let screen = util::get_screen(&setup);
-    let root = screen.root();
+    let conn = util::init_lax("lsw");
+    let screen = conn.preferred_screen();
+    let root = screen.root_ref();
 
     // Get all passed window ids
-    let mut wids = match args.values_of("<wid>") {
+    let wids = match args.values_of("wid") {
         Some(ids) => ids.map(util::get_window_id).collect(),
-        None => vec![screen.root()]
+        None => vec![root.id()]
     };
 
     // Print requested info
     if args.is_present("r") {
-        println!("0x{:08x}", root);
+        println!("0x{:08x}", root.id());
         return;
     }
 
@@ -55,20 +57,30 @@ fn main() {
 
     // Print the children window IDs if applicable
     for wid in wids {
-        let tree = util::get_query_tree(&conn, wid);
-        for &child in tree.children() {
-            if should_print(&conn, child, flags) {
-                println!("0x{:08x}", child);
+        let window = WindowRef::from(&conn, wid);
+        let mut children = window.children_refs().unwrap_or_else(|_|
+            panic!("cannot get children of {}", window.id())
+        );
+
+        for child in children.as_mut() {
+            if should_print(child, flags) {
+                println!("0x{:08x}", child.id());
             }
         }
     }
 }
 
-fn should_print(conn: &xcb::Connection, window: xcb::Window, flags: Flags) -> bool {
+fn should_print(window: WindowRef, flags: Flags) -> bool {
+    let attrs = window.attributes().unwrap_or_else(|_|
+        panic!("could not get attributes of {}", window.id())
+    );
+    let mapped = attrs.map_state == MapState::Viewable;
+    let ignore = attrs.override_redirect;
+
         flags.all
-    || (!util::mapped(conn, window) && flags.hidden)
-    || ( util::ignore(conn, window) && flags.ignore)
-    ||      util::mapped(conn, window)
-        && !util::ignore(conn, window)
+    || (!mapped && flags.hidden)
+    || ( ignore && flags.ignore)
+    ||      mapped
+        && !ignore
         && flags.none()
 }
