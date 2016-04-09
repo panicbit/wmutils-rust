@@ -1,7 +1,9 @@
 extern crate xcb;
 extern crate clap;
+extern crate lax;
 
 use clap::{App, Arg};
+use lax::prelude::*;
 
 pub mod util;
 
@@ -16,16 +18,16 @@ fn main() {
             .required(true))
         .get_matches();
 
-    let connection = util::init_xcb("killw");
-    let wids = args.values_of("wid").unwrap(); // Unwrap is fine, the arg is required
+    let connection = util::init_lax("killw");
+    // Unwrap is fine, because the `wid` arg is required
+    let windows = args.values_of("wid").unwrap()
+        .map(|wid| WindowRef::from(&connection, util::get_window_id(&wid)));
 
-    for wid in wids {
-        let wid = util::get_window_id(&wid);
-
+    for window in windows {
         if args.is_present("parent") {
-            xcb::kill_client(&connection, wid);
+            window.kill_client();
         } else {
-            xcb::destroy_window(&connection, wid);
+            window.destroy();
         }
     }
 
