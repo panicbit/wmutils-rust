@@ -1,7 +1,9 @@
+extern crate lax;
 extern crate xcb;
 extern crate clap;
 
 use clap::{App, Arg, ArgGroup};
+use lax::prelude::*;
 
 pub mod util;
 
@@ -19,35 +21,25 @@ fn main() {
             .required(true))
         .get_matches();
 
-    let connection = util::init_xcb("mapw");
-    let wids = args.values_of("wid").unwrap(); // Unwrap is fine, the arg is required
+    let connection = util::init_lax("mapw");
+    let windows = args.values_of("wid").unwrap()
+        .map(|wid| WindowRef::from(&connection, util::get_window_id(&wid)));
 
-    let action: fn(&xcb::Connection, xcb::Window) =
-        if args.is_present("map") { map }
-        else if args.is_present("unmap") { unmap }
+    let action: fn(_) =
+        if args.is_present("map") { WindowRef::map }
+        else if args.is_present("unmap") { WindowRef::unmap }
         else { toggle };
 
-    for wid in wids {
-        let wid = util::get_window_id(wid);
-        action(&connection, wid);
+    for window in windows {
+        action(window);
     }
 
     connection.flush();
 }
 
-fn map(connection: &xcb::Connection, window: xcb::Window) {
-    xcb::map_window(connection, window);
-}
-
-fn unmap(connection: &xcb::Connection, window: xcb::Window) {
-    xcb::unmap_window(connection, window);
-}
-
-fn toggle(connection: &xcb::Connection, window: xcb::Window) {
-    if util::mapped(connection, window) {
-        xcb::unmap_window(connection, window);
-    }
-    else {
-        xcb::map_window(connection, window);
+fn toggle(window: WindowRef) {
+    match window.is_mapped() {
+        true  => window.unmap(),
+        false => window.map()
     }
 }
